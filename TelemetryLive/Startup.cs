@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using MongoConsumerLibary.KafkaConsumer;
 
 namespace TelemetryLive
 {
@@ -17,6 +18,9 @@ namespace TelemetryLive
 
         public void ConfigureServices(IServiceCollection services)
         {
+            KafkaSettings kafkaSettings =  Configuration.GetSection(nameof(KafkaSettings)).Get<KafkaSettings>();
+            services.AddSingleton(kafkaSettings);
+            services.AddSingleton<KafkaConnection>();
         }
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
@@ -26,11 +30,9 @@ namespace TelemetryLive
 
             app.UseRouting();
 
-            app.UseAuthorization();
 
             app.UseEndpoints(endpoints =>
             {
-                endpoints.MapControllers();
             });
         }
     }
