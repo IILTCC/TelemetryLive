@@ -1,0 +1,7 @@
+﻿namespace TelemetryLive
+{
+    class Consts
+    {
+
+    }
+}
