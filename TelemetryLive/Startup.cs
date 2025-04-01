@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using MongoConsumerLibary.KafkaConsumer;
+using TelemetryLive.SignalR;
 
 namespace TelemetryLive
 {
@@ -18,9 +19,21 @@ namespace TelemetryLive
 
         public void ConfigureServices(IServiceCollection services)
         {
+            services.AddSignalR();
             KafkaSettings kafkaSettings =  Configuration.GetSection(nameof(KafkaSettings)).Get<KafkaSettings>();
             services.AddSingleton(kafkaSettings);
             services.AddSingleton<KafkaConnection>();
+            services.AddSingleton<WebSocketService>();
+            services.AddCors(options =>
+            {
+                options.AddDefaultPolicy(builder =>
+                {
+                    builder.WithOrigins("http://localhost:4200") // Adjust for your frontend URL
+                           .AllowAnyHeader()
+                           .AllowAnyMethod()
+                           .AllowCredentials();
+                });
+            });
         }
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
@@ -29,10 +42,13 @@ namespace TelemetryLive
                 app.UseDeveloperExceptionPage();
 
             app.UseRouting();
+            app.UseCors();
 
 
             app.UseEndpoints(endpoints =>
             {
+                endpoints.MapHub<StatisticsHub>(Consts.SGINALR_URL_NAME);
+
             });
         }
     }

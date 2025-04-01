@@ -1,10 +1,14 @@
 ﻿using Confluent.Kafka;
 using Microsoft.Extensions.Hosting;
 using MongoConsumerLibary.KafkaConsumer;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using TelemetryLive.Dto;
+using TelemetryLive.SignalR;
 
 namespace TelemetryLive
 {
@@ -12,11 +16,13 @@ namespace TelemetryLive
     {
         private readonly KafkaSettings _kafkaSettings;
         private readonly KafkaConnection _kafkaConnection;
+        private readonly WebSocketService _webSocketService;
         IConsumer<Ignore, string> consumer;
-        public TelemetryLive(KafkaConnection kafkaConnection, KafkaSettings kafkaSettings)
+        public TelemetryLive(KafkaConnection kafkaConnection, KafkaSettings kafkaSettings, WebSocketService webSocketService)
         {
             _kafkaConnection = kafkaConnection;
             _kafkaSettings = kafkaSettings;
+            _webSocketService = webSocketService;
         }
         public List<string> InitializeTopicNames()
         {
@@ -35,6 +41,8 @@ namespace TelemetryLive
                 try
                 {
                     ConsumeResult<Ignore, string> consumerResult = consumer.Consume(kafkaCancel);
+                    Console.WriteLine(consumerResult.Message.Value);
+                    await _webSocketService.UpdateStatistics(ConvertToStatisticDocument(consumerResult.Message.Value));
                 }
                 catch (KafkaException e)
                 {
@@ -42,6 +50,26 @@ namespace TelemetryLive
                 catch (Exception e)
                 {
                 }
+            }
+        }
+        private StatisticsRo ConvertToStatisticDocument(string json)
+        {
+            StatisticsRo temp = new StatisticsRo();
+            try
+            {
+                JObject jsonObject = JObject.Parse(json);
+                DateTime timestamp = jsonObject[Consts.STATISTICS_TIMESTAMP_NAME].ToObject<DateTime>();
+                jsonObject.Remove(Consts.STATISTICS_TIMESTAMP_NAME);
+                JObject wrappedJson = new JObject
+                {
+                    [nameof(temp.StatisticValues)] = jsonObject,
+                };
+                StatisticsRo statistic = JsonConvert.DeserializeObject<StatisticsRo>(wrappedJson.ToString());
+                return statistic;
+            }
+            catch (Exception e)
+            {
+                return temp;
             }
         }
         public async Task StartAsync(CancellationToken cancellationToken)
