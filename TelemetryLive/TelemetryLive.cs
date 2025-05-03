@@ -17,6 +17,7 @@ namespace TelemetryLive
         private readonly KafkaSettings _kafkaSettings;
         private readonly KafkaConnection _kafkaConnection;
         private readonly WebSocketService _webSocketService;
+        private string _latestData;
         IConsumer<Ignore, string> consumer;
         public TelemetryLive(KafkaConnection kafkaConnection, KafkaSettings kafkaSettings, WebSocketService webSocketService)
         {
@@ -36,13 +37,14 @@ namespace TelemetryLive
             _kafkaConnection.WaitForKafkaConnection();
             consumer = _kafkaConnection.Consumer(InitializeTopicNames());
             CancellationToken kafkaCancel = _kafkaConnection.CancellationToken(consumer);
+            Task.Run(LoopSend);
             while (!cancellationToken.IsCancellationRequested)
             {
                 try
                 {
                     ConsumeResult<Ignore, string> consumerResult = consumer.Consume(kafkaCancel);
                     Console.WriteLine(consumerResult.Message.Value);
-                    await _webSocketService.UpdateStatistics(ConvertToStatisticDocument(consumerResult.Message.Value));
+                    _latestData = consumerResult.Message.Value;
                 }
                 catch (KafkaException e)
                 {
@@ -50,6 +52,15 @@ namespace TelemetryLive
                 catch (Exception e)
                 {
                 }
+            }
+        }
+        private async Task LoopSend()
+        {
+            while(true)
+            {
+                if(_latestData != null)
+                    await _webSocketService.UpdateStatistics(ConvertToStatisticDocument(_latestData));
+                Thread.Sleep(Consts.DELAY_WEBSOCKET);
             }
         }
         private StatisticsRo ConvertToStatisticDocument(string json)
